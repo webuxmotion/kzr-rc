@@ -52,16 +52,12 @@ void readButtons() {
 }
 
 void setup() {
-    Serial.begin(115200);
-
     pinMode(DATA_PIN, OUTPUT);
     digitalWrite(DATA_PIN, HIGH);  // Idle HIGH
 
     pinMode(BUTTON1_PIN, INPUT_PULLUP);
     pinMode(BUTTON2_PIN, INPUT_PULLUP);
     pinMode(BUTTON3_PIN, INPUT_PULLUP);
-
-    Serial.println("ESP32-C3 Buttons Ready (Pulse Protocol)");
 }
 
 void loop() {
@@ -69,6 +65,5 @@ void loop() {
         lastTxTime = millis();
         readButtons();
         sendPacket(button1, button2, button3);
-        Serial.printf("btn1=%d btn2=%d btn3=%d\n", button1, button2, button3);
     }
 }

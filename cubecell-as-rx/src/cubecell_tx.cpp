@@ -143,8 +143,6 @@ void sendLoRaPacket() {
 }
 
 void setup() {
-    Serial.begin(115200);
-
     pinMode(DATA_PIN, INPUT_PULLUP);
 
     RadioEvents.TxDone = OnTxDone;
@@ -155,23 +153,18 @@ void setup() {
     Radio.SetTxConfig(MODEM_LORA, TX_OUTPUT_POWER, 0, LORA_BANDWIDTH,
         LORA_SPREADING_FACTOR, LORA_CODINGRATE, LORA_PREAMBLE_LENGTH,
         false, true, 0, 0, false, 3000);
-
-    Serial.println("CubeCell TX Ready (Pulse Protocol)");
 }
 
 void loop() {
     Radio.IrqProcess();
 
     // Try to receive pulse packet
-    if (receivePacket()) {
-        Serial.printf("RX: btn1=%d btn2=%d btn3=%d\n", btn1, btn2, btn3);
-    }
+    receivePacket();
 
     // Send LoRa packet every 30ms
     if ((millis() - lastTxTime) >= 30 && txDone) {
         lastTxTime = millis();
         sendLoRaPacket();
-        Serial.printf("TX: fwd=%d bwd=%d spd=%d lamp=%d\n", txForward, txBackward, txSpeed, txLampOn);
     }
 
     // Failsafe: zero values if no data for 500ms

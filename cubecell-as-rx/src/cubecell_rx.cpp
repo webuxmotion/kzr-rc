@@ -96,8 +96,6 @@ void OnRxTimeout() { Radio.Rx(0); }
 void OnRxError() { Radio.Rx(0); }
 
 void setup() {
-    Serial.begin(115200);
-
     pinMode(SOFT_TX_PIN, OUTPUT);
     digitalWrite(SOFT_TX_PIN, HIGH);
 
@@ -111,7 +109,6 @@ void setup() {
         LORA_CODINGRATE, 0, LORA_PREAMBLE_LENGTH, 0, false, 0, true, 0, 0, false, true);
 
     Radio.Rx(0);
-    Serial.println("CubeCell RX Ready");
 }
 
 void loop() {
@@ -120,20 +117,15 @@ void loop() {
     if (loraDataReceived) {
         loraDataReceived = false;
         sendToNodeMCU();
-        Serial.printf("RX fwd=%d bwd=%d L=%d R=%d spd=%d temp=%d lamp=%d\n",
-            rxForward, rxBackward, rxLeft, rxRight, rxSpeed, rxTemperature, rxLampOn);
     }
 
     // Failsafe: 2 seconds without LoRa data, with 200ms debounce
     uint32_t timeSinceRx = millis() - lastRxTime;
     if (timeSinceRx > 2000 && lastRxTime > 0 && !inFailsafe) {
         if (!failsafePending) {
-            // First detection - start debounce timer
             failsafePending = true;
             failsafePendingTime = millis();
         } else if (millis() - failsafePendingTime > 200) {
-            // Failsafe persisted for 200ms - trigger it
-            Serial.printf("FAILSAFE: %lu ms\n", timeSinceRx);
             rxForward = rxBackward = rxLeft = rxRight = rxSpeed = 0;
             rxLampOn = 0;
             sendToNodeMCU();
