@@ -1,11 +1,14 @@
 // CubeCell TX - LoRa Transmitter
-// Buttons: GPIO1, GPIO2
+// 1-Wire pulse protocol on GPIO5 <- ESP32-C3 GPIO10
 
 #include <Arduino.h>
 #include "LoRaWan_APP.h"
 
-#define BUTTON1_PIN GPIO1
-#define BUTTON2_PIN GPIO2
+#define DATA_PIN GPIO5
+
+// Pulse timing thresholds (microseconds)
+#define START_MIN 2000     // Start pulse > 2ms
+#define BIT_THRESHOLD 1000 // < 1ms = 0, > 1ms = 1
 
 #define RF_FREQUENCY 433000000
 #define TX_OUTPUT_POWER 14
@@ -17,10 +20,10 @@
 static RadioEvents_t RadioEvents;
 bool txDone = true;
 
-bool button1Pressed = false;
-bool button2Pressed = false;
-bool bothButtonsWerePressed = false;
 uint8_t txLampOn = 0;
+uint8_t btn1 = 0;
+uint8_t btn2 = 0;
+uint8_t btn3 = 0;  // Lamp button
 
 int16_t txForward = 0;
 int16_t txBackward = 0;
@@ -30,6 +33,73 @@ int16_t txSpeed = 0;
 int16_t txTemperature = 250;
 
 uint32_t lastTxTime = 0;
+uint32_t lastRxTime = 0;
+
+// Measure LOW pulse duration
+uint32_t measurePulse() {
+    uint32_t start = micros();
+    while (digitalRead(DATA_PIN) == LOW) {
+        if ((micros() - start) > 10000) return 0;  // Timeout
+    }
+    return micros() - start;
+}
+
+// Read one bit (wait for LOW, measure duration)
+int8_t readBit() {
+    // Wait for LOW (start of bit pulse)
+    uint32_t waitStart = micros();
+    while (digitalRead(DATA_PIN) == HIGH) {
+        if ((micros() - waitStart) > 5000) return -1;  // Timeout
+    }
+
+    uint32_t pulseLen = measurePulse();
+    if (pulseLen == 0) return -1;
+
+    return (pulseLen > BIT_THRESHOLD) ? 1 : 0;
+}
+
+// Try to receive a packet
+bool receivePacket() {
+    // Check if line is LOW (potential start pulse)
+    if (digitalRead(DATA_PIN) == HIGH) return false;
+
+    uint32_t pulseLen = measurePulse();
+
+    // Check for start pulse (> 2ms)
+    if (pulseLen < START_MIN) return false;
+
+    // Wait for gap to end
+    uint32_t gapStart = micros();
+    while (digitalRead(DATA_PIN) == HIGH) {
+        if ((micros() - gapStart) > 3000) return false;
+    }
+
+    // Read button 1
+    int8_t b1 = readBit();
+    if (b1 < 0) return false;
+
+    // Read button 2
+    int8_t b2 = readBit();
+    if (b2 < 0) return false;
+
+    // Read button 3 (lamp)
+    int8_t b3 = readBit();
+    if (b3 < 0) return false;
+
+    btn1 = b1;
+    btn2 = b2;
+    btn3 = b3;
+
+    txForward = btn1 ? 100 : 0;
+    txBackward = btn2 ? 100 : 0;
+    txLeft = 0;
+    txRight = 0;
+    txSpeed = (btn1 || btn2) ? 100 : 0;
+    txLampOn = btn3;
+
+    lastRxTime = millis();
+    return true;
+}
 
 void OnTxDone() {
     txDone = true;
@@ -63,37 +133,10 @@ void sendLoRaPacket() {
     Radio.Send(packet, sizeof(packet));
 }
 
-void readButtons() {
-    button1Pressed = (digitalRead(BUTTON1_PIN) == LOW);
-    button2Pressed = (digitalRead(BUTTON2_PIN) == LOW);
-
-    // Both buttons pressed together toggles lamp (on release)
-    if (button1Pressed && button2Pressed) {
-        bothButtonsWerePressed = true;
-        txForward = 0;
-        txBackward = 0;
-        txSpeed = 0;
-    } else if (bothButtonsWerePressed && !button1Pressed && !button2Pressed) {
-        // Released both buttons - toggle lamp
-        txLampOn = txLampOn ? 0 : 1;
-        bothButtonsWerePressed = false;
-        txForward = 0;
-        txBackward = 0;
-        txSpeed = 0;
-    } else {
-        txForward = button1Pressed ? 100 : 0;
-        txBackward = button2Pressed ? 100 : 0;
-        txSpeed = (button1Pressed || button2Pressed) ? 100 : 0;
-    }
-    txLeft = 0;
-    txRight = 0;
-}
-
 void setup() {
     Serial.begin(115200);
 
-    pinMode(BUTTON1_PIN, INPUT_PULLUP);
-    pinMode(BUTTON2_PIN, INPUT_PULLUP);
+    pinMode(DATA_PIN, INPUT_PULLUP);
 
     RadioEvents.TxDone = OnTxDone;
     RadioEvents.TxTimeout = OnTxTimeout;
@@ -104,17 +147,27 @@ void setup() {
         LORA_SPREADING_FACTOR, LORA_CODINGRATE, LORA_PREAMBLE_LENGTH,
         false, true, 0, 0, false, 3000);
 
-    Serial.println("CubeCell TX Ready");
+    Serial.println("CubeCell TX Ready (Pulse Protocol)");
 }
 
 void loop() {
     Radio.IrqProcess();
 
+    // Try to receive pulse packet
+    if (receivePacket()) {
+        Serial.printf("RX: btn1=%d btn2=%d btn3=%d\n", btn1, btn2, btn3);
+    }
+
+    // Send LoRa packet every 50ms
     if ((millis() - lastTxTime) >= 50 && txDone) {
         lastTxTime = millis();
-        readButtons();
         sendLoRaPacket();
-        Serial.printf("TX: fwd=%d bwd=%d L=%d R=%d spd=%d\n",
-            txForward, txBackward, txLeft, txRight, txSpeed);
+        Serial.printf("TX: fwd=%d bwd=%d spd=%d lamp=%d\n", txForward, txBackward, txSpeed, txLampOn);
+    }
+
+    // Failsafe: zero values if no data for 500ms
+    if (lastRxTime > 0 && (millis() - lastRxTime) > 500) {
+        txForward = txBackward = txLeft = txRight = txSpeed = 0;
+        btn1 = btn2 = 0;
     }
 }
