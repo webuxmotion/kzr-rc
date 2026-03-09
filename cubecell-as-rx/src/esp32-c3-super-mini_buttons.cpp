@@ -11,10 +11,10 @@
 
 // Pulse timing (microseconds)
 #define START_PULSE 3000   // Start pulse LOW duration
-#define START_GAP   1500   // Gap after start
-#define BIT_0_PULSE 500    // Short pulse = 0
-#define BIT_1_PULSE 1500   // Long pulse = 1
-#define BIT_GAP     500    // Gap between bits
+#define START_GAP   2000   // Gap after start (increased)
+#define BIT_0_PULSE 400    // Short pulse = 0
+#define BIT_1_PULSE 1600   // Long pulse = 1
+#define BIT_GAP     800    // Gap between bits (increased)
 
 uint8_t button1 = 0;
 uint8_t button2 = 0;
@@ -40,6 +40,9 @@ void sendPacket(uint8_t btn1, uint8_t btn2, uint8_t btn3) {
     sendBit(btn1);
     sendBit(btn2);
     sendBit(btn3);
+
+    // Send parity bit (XOR of all buttons)
+    sendBit(btn1 ^ btn2 ^ btn3);
 }
 
 void readButtons() {

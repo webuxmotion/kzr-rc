@@ -12,7 +12,7 @@
 #define SYNC_BYTE_2 0xBB
 
 #define RF_FREQUENCY 433000000
-#define LORA_BANDWIDTH 0
+#define LORA_BANDWIDTH 1              // 0=125kHz, 1=250kHz (faster)
 #define LORA_SPREADING_FACTOR 7
 #define LORA_CODINGRATE 1
 #define LORA_PREAMBLE_LENGTH 8

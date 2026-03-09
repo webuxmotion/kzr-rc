@@ -8,11 +8,12 @@
 
 // Pulse timing thresholds (microseconds)
 #define START_MIN 2000     // Start pulse > 2ms
-#define BIT_THRESHOLD 1000 // < 1ms = 0, > 1ms = 1
+#define BIT_THRESHOLD 800  // < 0.8ms = 0, > 0.8ms = 1
+#define MIN_PULSE 200      // Ignore pulses shorter than 0.2ms (noise)
 
 #define RF_FREQUENCY 433000000
 #define TX_OUTPUT_POWER 14
-#define LORA_BANDWIDTH 0
+#define LORA_BANDWIDTH 1              // 0=125kHz, 1=250kHz (faster)
 #define LORA_SPREADING_FACTOR 7
 #define LORA_CODINGRATE 1
 #define LORA_PREAMBLE_LENGTH 8
@@ -54,6 +55,7 @@ int8_t readBit() {
 
     uint32_t pulseLen = measurePulse();
     if (pulseLen == 0) return -1;
+    if (pulseLen < MIN_PULSE) return -1;  // Reject noise
 
     return (pulseLen > BIT_THRESHOLD) ? 1 : 0;
 }
@@ -85,6 +87,13 @@ bool receivePacket() {
     // Read button 3 (lamp)
     int8_t b3 = readBit();
     if (b3 < 0) return false;
+
+    // Read parity bit
+    int8_t parity = readBit();
+    if (parity < 0) return false;
+
+    // Verify parity (XOR of all buttons should equal parity bit)
+    if ((b1 ^ b2 ^ b3) != parity) return false;
 
     btn1 = b1;
     btn2 = b2;
@@ -158,8 +167,8 @@ void loop() {
         Serial.printf("RX: btn1=%d btn2=%d btn3=%d\n", btn1, btn2, btn3);
     }
 
-    // Send LoRa packet every 50ms
-    if ((millis() - lastTxTime) >= 50 && txDone) {
+    // Send LoRa packet every 30ms
+    if ((millis() - lastTxTime) >= 30 && txDone) {
         lastTxTime = millis();
         sendLoRaPacket();
         Serial.printf("TX: fwd=%d bwd=%d spd=%d lamp=%d\n", txForward, txBackward, txSpeed, txLampOn);
