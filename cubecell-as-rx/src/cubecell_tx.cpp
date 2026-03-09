@@ -19,6 +19,8 @@ bool txDone = true;
 
 bool button1Pressed = false;
 bool button2Pressed = false;
+bool bothButtonsWerePressed = false;
+uint8_t txLampOn = 0;
 
 int16_t txForward = 0;
 int16_t txBackward = 0;
@@ -42,7 +44,7 @@ void OnTxTimeout() {
 void sendLoRaPacket() {
     if (!txDone) return;
 
-    uint8_t packet[12];
+    uint8_t packet[13];
     packet[0] = (txForward >> 8) & 0xFF;
     packet[1] = txForward & 0xFF;
     packet[2] = (txBackward >> 8) & 0xFF;
@@ -55,6 +57,7 @@ void sendLoRaPacket() {
     packet[9] = txSpeed & 0xFF;
     packet[10] = (txTemperature >> 8) & 0xFF;
     packet[11] = txTemperature & 0xFF;
+    packet[12] = txLampOn;
 
     txDone = false;
     Radio.Send(packet, sizeof(packet));
@@ -64,9 +67,24 @@ void readButtons() {
     button1Pressed = (digitalRead(BUTTON1_PIN) == LOW);
     button2Pressed = (digitalRead(BUTTON2_PIN) == LOW);
 
-    txForward = button1Pressed ? 100 : 0;
-    txBackward = button2Pressed ? 100 : 0;
-    txSpeed = (button1Pressed || button2Pressed) ? 100 : 0;
+    // Both buttons pressed together toggles lamp (on release)
+    if (button1Pressed && button2Pressed) {
+        bothButtonsWerePressed = true;
+        txForward = 0;
+        txBackward = 0;
+        txSpeed = 0;
+    } else if (bothButtonsWerePressed && !button1Pressed && !button2Pressed) {
+        // Released both buttons - toggle lamp
+        txLampOn = txLampOn ? 0 : 1;
+        bothButtonsWerePressed = false;
+        txForward = 0;
+        txBackward = 0;
+        txSpeed = 0;
+    } else {
+        txForward = button1Pressed ? 100 : 0;
+        txBackward = button2Pressed ? 100 : 0;
+        txSpeed = (button1Pressed || button2Pressed) ? 100 : 0;
+    }
     txLeft = 0;
     txRight = 0;
 }

@@ -30,6 +30,7 @@ int16_t rxLeft = 0;
 int16_t rxRight = 0;
 int16_t rxSpeed = 0;
 int16_t rxTemperature = 0;
+uint8_t rxLampOn = 0;
 
 uint32_t lastRxTime = 0;
 
@@ -45,12 +46,12 @@ void softSerialWrite(uint8_t b) {
 }
 
 void sendToNodeMCU() {
-    uint8_t packet[16];
+    uint8_t packet[18];
     uint8_t idx = 0;
 
     packet[idx++] = SYNC_BYTE_1;
     packet[idx++] = SYNC_BYTE_2;
-    packet[idx++] = 12;
+    packet[idx++] = 13;
 
     packet[idx++] = (rxForward >> 8) & 0xFF;
     packet[idx++] = rxForward & 0xFF;
@@ -64,6 +65,7 @@ void sendToNodeMCU() {
     packet[idx++] = rxSpeed & 0xFF;
     packet[idx++] = (rxTemperature >> 8) & 0xFF;
     packet[idx++] = rxTemperature & 0xFF;
+    packet[idx++] = rxLampOn;
 
     uint8_t crc = 0;
     for (uint8_t i = 2; i < idx; i++) crc ^= packet[i];
@@ -74,13 +76,14 @@ void sendToNodeMCU() {
 
 void OnRxDone(uint8_t *payload, uint16_t size, int16_t rssi, int8_t snr) {
     rxRssi = rssi;
-    if (size >= 12) {
+    if (size >= 13) {
         rxForward     = (int16_t)((payload[0] << 8) | payload[1]);
         rxBackward    = (int16_t)((payload[2] << 8) | payload[3]);
         rxLeft        = (int16_t)((payload[4] << 8) | payload[5]);
         rxRight       = (int16_t)((payload[6] << 8) | payload[7]);
         rxSpeed       = (int16_t)((payload[8] << 8) | payload[9]);
         rxTemperature = (int16_t)((payload[10] << 8) | payload[11]);
+        rxLampOn      = payload[12];
         loraDataReceived = true;
         lastRxTime = millis();
         inFailsafe = false;
@@ -117,7 +120,8 @@ void loop() {
     if (loraDataReceived) {
         loraDataReceived = false;
         sendToNodeMCU();
-        Serial.println("RX");  // Simple print to reduce blocking
+        Serial.printf("RX fwd=%d bwd=%d L=%d R=%d spd=%d temp=%d lamp=%d\n",
+            rxForward, rxBackward, rxLeft, rxRight, rxSpeed, rxTemperature, rxLampOn);
     }
 
     // Failsafe: 2 seconds without LoRa data, with 200ms debounce
@@ -131,6 +135,7 @@ void loop() {
             // Failsafe persisted for 200ms - trigger it
             Serial.printf("FAILSAFE: %lu ms\n", timeSinceRx);
             rxForward = rxBackward = rxLeft = rxRight = rxSpeed = 0;
+            rxLampOn = 0;
             sendToNodeMCU();
             inFailsafe = true;
             failsafePending = false;
