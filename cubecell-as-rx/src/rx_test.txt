@@ -1,0 +1,18 @@
+// RX TEST - Flash to CubeCell #2
+#include <Arduino.h>
+
+void setup() {
+    Serial.begin(115200);
+    Serial1.begin(115200);
+    Serial.println("RX Test - listening on P3_0");
+}
+
+void loop() {
+    if (Serial1.available()) {
+        Serial.print("RX: ");
+        while (Serial1.available()) {
+            Serial.printf("%02X ", Serial1.read());
+        }
+        Serial.println();
+    }
+}

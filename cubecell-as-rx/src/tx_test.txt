@@ -1,0 +1,45 @@
+// TX TEST using GPIO bit-bang
+#include <Arduino.h>
+
+#define TX_PIN GPIO2  // J3 pin 9
+
+void softSerialWrite(uint8_t b) {
+    // 9600 baud = 104us per bit
+    const uint32_t bitDelay = 104;
+
+    // Start bit (LOW)
+    digitalWrite(TX_PIN, LOW);
+    delayMicroseconds(bitDelay);
+
+    // 8 data bits (LSB first)
+    for (int i = 0; i < 8; i++) {
+        digitalWrite(TX_PIN, (b >> i) & 1);
+        delayMicroseconds(bitDelay);
+    }
+
+    // Stop bit (HIGH)
+    digitalWrite(TX_PIN, HIGH);
+    delayMicroseconds(bitDelay);
+}
+
+void softSerialPrint(const char* str) {
+    while (*str) {
+        softSerialWrite(*str++);
+    }
+}
+
+void setup() {
+    Serial.begin(115200);
+    pinMode(TX_PIN, OUTPUT);
+    digitalWrite(TX_PIN, HIGH);  // Idle high
+    Serial.println("TX Test on GPIO2 (J3 pin 9) @ 9600 baud");
+}
+
+void loop() {
+    static uint32_t t = 0;
+    if (millis() - t >= 500) {
+        t = millis();
+        softSerialPrint("HELLO\n");
+        Serial.println("TX: sent HELLO");
+    }
+}

@@ -1,0 +1,26 @@
+// RX TEST - Flash this to CubeCell #2
+// Connect: CubeCell #1 P3_1 (TX) -> CubeCell #2 P3_0 (RX)
+// Connect: GND -> GND
+
+#include <Arduino.h>
+
+void setup() {
+    Serial.begin(115200);  // USB debug
+    delay(100);
+    Serial.println("=== CubeCell #2 RX Test ===");
+
+    Serial1.begin(420000);  // Hardware UART on P3_0
+    Serial.println("Serial1 RX on P3_0 @ 420000 baud");
+    Serial.println("Waiting for data...");
+}
+
+void loop() {
+    if (Serial1.available()) {
+        Serial.print("RX: ");
+        while (Serial1.available()) {
+            uint8_t b = Serial1.read();
+            Serial.printf("%02X ", b);
+        }
+        Serial.println();
+    }
+}
