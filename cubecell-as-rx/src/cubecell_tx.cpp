@@ -92,9 +92,11 @@ void setup() {
 void loop() {
     Radio.IrqProcess();
 
-    if ((millis() - lastTxTime) >= 20 && txDone) {
+    if ((millis() - lastTxTime) >= 50 && txDone) {
         lastTxTime = millis();
         readButtons();
         sendLoRaPacket();
+        Serial.printf("TX: fwd=%d bwd=%d L=%d R=%d spd=%d\n",
+            txForward, txBackward, txLeft, txRight, txSpeed);
     }
 }

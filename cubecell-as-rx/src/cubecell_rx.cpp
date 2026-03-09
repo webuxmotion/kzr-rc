@@ -20,6 +20,9 @@
 static RadioEvents_t RadioEvents;
 int16_t rxRssi;
 bool loraDataReceived = false;
+bool inFailsafe = false;
+bool failsafePending = false;
+uint32_t failsafePendingTime = 0;
 
 int16_t rxForward = 0;
 int16_t rxBackward = 0;
@@ -80,6 +83,8 @@ void OnRxDone(uint8_t *payload, uint16_t size, int16_t rssi, int8_t snr) {
         rxTemperature = (int16_t)((payload[10] << 8) | payload[11]);
         loraDataReceived = true;
         lastRxTime = millis();
+        inFailsafe = false;
+        failsafePending = false;  // Cancel pending failsafe on valid packet
     }
     Radio.Rx(0);
 }
@@ -112,11 +117,23 @@ void loop() {
     if (loraDataReceived) {
         loraDataReceived = false;
         sendToNodeMCU();
+        Serial.println("RX");  // Simple print to reduce blocking
     }
 
-    if ((millis() - lastRxTime) > 500 && lastRxTime > 0) {
-        rxForward = rxBackward = rxLeft = rxRight = rxSpeed = 0;
-        sendToNodeMCU();
-        lastRxTime = millis();
+    // Failsafe: 2 seconds without LoRa data, with 200ms debounce
+    uint32_t timeSinceRx = millis() - lastRxTime;
+    if (timeSinceRx > 2000 && lastRxTime > 0 && !inFailsafe) {
+        if (!failsafePending) {
+            // First detection - start debounce timer
+            failsafePending = true;
+            failsafePendingTime = millis();
+        } else if (millis() - failsafePendingTime > 200) {
+            // Failsafe persisted for 200ms - trigger it
+            Serial.printf("FAILSAFE: %lu ms\n", timeSinceRx);
+            rxForward = rxBackward = rxLeft = rxRight = rxSpeed = 0;
+            sendToNodeMCU();
+            inFailsafe = true;
+            failsafePending = false;
+        }
     }
 }
