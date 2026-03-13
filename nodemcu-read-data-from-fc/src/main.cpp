@@ -506,6 +506,10 @@ void handleFlash() {
 }
 
 void setup() {
+    // Initialize flashlight first to prevent flash on boot
+    flashLight.begin();
+    flashLight.setMode(FLASH_MODE_OFF);
+
     Serial.begin(420000);
     crsf.begin(Serial);
 
@@ -517,9 +521,6 @@ void setup() {
     server.on("/data", handleData);
     server.on("/flash", handleFlash);
     server.begin();
-
-    flashLight.begin();
-    flashLight.setMode(FLASH_MODE_OFF);
 
     updateCrsfChannels();
 }
